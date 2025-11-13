@@ -1,0 +1,100 @@
+
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch"; // Still needed for other potential switches or if added back later.
+import { Label } from "@/components/ui/label";
+import { Zap, Eye, Shield, Swords, Flame, ShoppingCart, Trophy, Package, Star, Lock, Settings, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { base44 } from "@/api/base44Client";
+import PlayerPreview from "../components/menu/PlayerPreview";
+
+const OPERATORS = [
+  {
+    id: "teleporter",
+    name: "Teleporter",
+    icon: Swords,
+    color: "from-purple-500 to-pink-500",
+    description: "Teleport to high ground instantly",
+    ability: "Teleport",
+    cooldown: "35s"
+  },
+  {
+    id: "blinder",
+    name: "Blinder",
+    icon: Eye,
+    color: "from-yellow-500 to-orange-500",
+    description: "Flash enemies' screens temporarily",
+    ability: "Flashbang",
+    cooldown: "10s"
+  },
+  {
+    id: "disabler",
+    name: "Disabler",
+    icon: Zap,
+    color: "from-cyan-500 to-blue-500",
+    description: "Jam enemy abilities for 5 seconds",
+    ability: "System Hack",
+    cooldown: "12s"
+  },
+  {
+    id: "wall",
+    name: "Wall Specialist",
+    icon: Shield,
+    color: "from-green-500 to-emerald-500",
+    description: "Deploy bulletproof barrier",
+    ability: "Force Wall",
+    cooldown: "15s"
+  }
+];
+
+const WEAPON_SKINS = [
+  { id: "golden", name: "Golden Shine", price: 2500, color: "#ffd700" },
+  { id: "ruby", name: "Ruby Blaze", price: 2000, color: "#ff0000" },
+  { id: "emerald", name: "Emerald Glow", price: 2000, color: "#00ff00" },
+  { id: "sapphire", name: "Sapphire Wave", price: 2000, color: "#0000ff" },
+  { id: "shadow", name: "Shadow Strike", price: 1500, color: "#1a1a1a" },
+  { id: "plasma", name: "Plasma Pulse", price: 3000, color: "#ff00ff" },
+];
+
+const BATTLE_PASS_REWARDS = [
+  { tier: 1, free: "100 Credits", premium: "Epic Knife Skin" },
+  { tier: 5, free: "Operator Icon", premium: "Legendary Gun Skin" },
+  { tier: 10, free: "500 Credits", premium: "Mythic Operator" },
+  { tier: 15, free: "Rare Emote", premium: "Ultimate Finisher" },
+  { tier: 20, free: "1000 Credits", premium: "Exclusive Title" },
+];
+
+export default function MainMenu() {
+  const navigate = useNavigate();
+  const [selectedOperator, setSelectedOperator] = useState(null);
+  const [hoveredOperator, setHoveredOperator] = useState(null);
+  const [activeTab, setActiveTab] = useState("play");
+  const [showOperatorSelect, setShowOperatorSelect] = useState(false);
+  const [user, setUser] = useState(null);
+  const [battlePassTier, setBattlePassTier] = useState(7);
+  const [sensitivity, setSensitivity] = useState(1.0);
+  // Removed: const [adsToggle, setAdsToggle] = useState(false);
+
+  useEffect(() => {
+    loadUserData();
+    loadSettings();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const currentUser = await base44.auth.me();
+      // Initialize credits and owned_skins if they don't exist
+      if (currentUser && currentUser.credits === undefined) {
+        currentUser.credits = 10000;
+      }
+      if (currentUser && currentUser.owned_skins === undefined) {
+        currentUser.owned_skins = [];
+      }
+      if (currentUser && currentUser.weapon_skin === undefined) {
+        currentUser.weapon_skin = null;
+      }
+ 

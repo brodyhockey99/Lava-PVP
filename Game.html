@@ -1,0 +1,100 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { base44 } from "@/api/base44Client";
+import GameCanvas from "../components/game/GameCanvas";
+import GameHUD from "../components/game/GameHUD";
+import VictoryScreen from "../components/game/VictoryScreen";
+
+export default function Game() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [gameState, setGameState] = useState({
+    health: 100,
+    ammo: 999,
+    ability: {
+      ready: true,
+      cooldown: 0,
+      maxCooldown: 35
+    },
+    score: 0,
+    kills: 0,
+    timeElapsed: 0,
+    lavaHeight: 0,
+    isGameOver: false,
+    victory: false
+  });
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const operator = urlParams.get("operator") || "teleporter";
+
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  const loadUser = async () => {
+    try {
+      const currentUser = await base44.auth.me();
+      setUser(currentUser);
+    } catch (error) {
+      console.error("Failed to load user:", error);
+    }
+  };
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && !gameState.isGameOver) {
+        navigate("/");
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [navigate, gameState.isGameOver]);
+
+  const handleGameStateUpdate = (updates) => {
+    setGameState(prev => ({ ...prev, ...updates }));
+  };
+
+  const handleRestart = () => {
+    window.location.reload();
+  };
+
+  const handleMainMenu = () => {
+    navigate("/");
+  };
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-black">
+      <GameCanvas 
+        operator={operator}
+        weaponSkin={user?.weapon_skin}
+        onGameStateUpdate={handleGameStateUpdate}
+        gameState={gameState}
+      />
+      
+      {!gameState.isGameOver && (
+        <GameHUD 
+          health={gameState.health}
+          ammo={gameState.ammo}
+          ability={gameState.ability}
+          operator={operator}
+          score={gameState.score}
+          kills={gameState.kills}
+          timeElapsed={gameState.timeElapsed}
+          lavaHeight={gameState.lavaHeight}
+        />
+      )}
+
+      {gameState.isGameOver && (
+        <VictoryScreen
+          victory={gameState.victory}
+          kills={gameState.kills}
+          score={gameState.score}
+          timeElapsed={gameState.timeElapsed}
+          onRestart={handleRestart}
+          onMainMenu={handleMainMenu}
+        />
+      )}
+    </div>
+  );
+}

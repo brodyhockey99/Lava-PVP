@@ -1,0 +1,299 @@
+// Add these functions at the end of the file
+
+function updateBots(gameRef, player, scene, deltaTime, currentTime) {
+  if (!gameRef.current.bots) return;
+  
+  const bots = gameRef.current.bots;
+  const allBots = [...bots];
+
+  for (let i = bots.length - 1; i >= 0; i--) {
+    const bot = bots[i];
+    if (!bot || !bot.userData) continue;
+
+    if (bot.userData.health <= 0) {
+      scene.remove(bot);
+      bots.splice(i, 1);
+      gameRef.current.kills++;
+      continue;
+    }
+
+    bot.userData.targetSwitchTimer -= deltaTime;
+    
+    if (bot.userData.targetSwitchTimer <= 0 || !bot.userData.target) {
+      bot.userData.targetSwitchTimer = 3 + Math.random() * 4;
+      bot.userData.target = player;
+    }
+
+    const nearestTarget = bot.userData.target || player;
+    const nearestDistance = bot.position.distanceTo(nearestTarget.position);
+
+    bot.userData.nextJumpCheck -= deltaTime;
+    
+    // Bot movement and jumping
+    if (bot.userData.onGround && gameRef.current.platforms) {
+      if (bot.userData.nextJumpCheck <= 0) {
+        bot.userData.nextJumpCheck = 1 + Math.random();
+        
+        let highestPlatform = null;
+        let maxHeight = bot.position.y;
+        
+        gameRef.current.platforms.forEach(platform => {
+          if (platform.userData.isObstacle) return;
+          
+          const dist = new THREE.Vector2(bot.position.x, bot.position.z)
+            .distanceTo(new THREE.Vector2(platform.position.x, platform.position.z));
+          
+          if (dist < 15 && platform.position.y > maxHeight && platform.position.y < bot.position.y + 12) {
+            maxHeight = platform.position.y;
+            highestPlatform = platform;
+          }
+        });
+
+        if (highestPlatform) {
+          const direction = new THREE.Vector3()
+            .subVectors(highestPlatform.position, bot.position)
+            .normalize();
+          
+          bot.position.addScaledVector(direction, 0.08);
+          bot.lookAt(highestPlatform.position);
+          
+          if (bot.userData.jumpTimer <= 0) {
+            bot.userData.velocity.y = 0.35;
+            bot.userData.onGround = false;
+            bot.userData.jumpTimer = 1.5;
+          }
+        }
+      }
+      
+      if (nearestDistance < 30 && nearestDistance > 3) {
+        const direction = new THREE.Vector3()
+          .subVectors(nearestTarget.position, bot.position);
+        direction.y = 0;
+        direction.normalize();
+        bot.position.addScaledVector(direction, 0.06);
+        bot.lookAt(new THREE.Vector3(nearestTarget.position.x, bot.position.y, nearestTarget.position.z));
+      }
+    }
+
+    bot.userData.jumpTimer -= deltaTime;
+
+    // ALL bots shoot consistently
+    if (nearestDistance < 40 && 
+        nearestDistance > 2 &&
+        currentTime - bot.userData.lastShot > 0.8 + Math.random() * 0.4) {
+      shootBot(bot, nearestTarget, scene, gameRef);
+      bot.userData.lastShot = currentTime;
+    }
+
+    bot.userData.velocity.y -= 0.015;
+    bot.position.y += bot.userData.velocity.y;
+
+    bot.userData.onGround = false;
+    scene.children.forEach(obj => {
+      if (obj.userData.isPlatform && !obj.userData.isObstacle) {
+        const box1 = new THREE.Box3().setFromObject(bot);
+        const box2 = new THREE.Box3().setFromObject(obj);
+        
+        if (box1.intersectsBox(box2) && bot.userData.velocity.y <= 0) {
+          bot.position.y = obj.position.y + (obj.geometry.parameters.height || 1) / 2 + 0.5;
+          bot.userData.velocity.y = 0;
+          bot.userData.onGround = true;
+        }
+      }
+    });
+
+    if (bot.position.x > 55) bot.position.x = 55;
+    if (bot.position.x < -55) bot.position.x = -55;
+    if (bot.position.z > 55) bot.position.z = 55;
+    if (bot.position.z < -55) bot.position.z = -55;
+  }
+}
+
+function updateBullets(gameRef, player, scene, onGameStateUpdate, gameState) {
+  if (!gameRef.current.bullets || !gameRef.current.platforms) return;
+  
+  const bullets = gameRef.current.bullets;
+  
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const bullet = bullets[i];
+    if (!bullet) continue;
+    
+    bullet.userData.lifetime -= 0.016;
+    
+    if (bullet.userData.lifetime <= 0) {
+      scene.remove(bullet);
+      bullets.splice(i, 1);
+      continue;
+    }
+    
+    bullet.position.add(bullet.userData.velocity);
+    
+    // Check platform collisions
+    let hitPlatform = false;
+    for (const platform of gameRef.current.platforms) {
+      if (bullet.position.distanceTo(platform.position) < 3) {
+        const box1 = new THREE.Box3().setFromObject(bullet);
+        const box2 = new THREE.Box3().setFromObject(platform);
+        if (box1.intersectsBox(box2)) {
+          hitPlatform = true;
+          break;
+        }
+      }
+    }
+    
+    if (hitPlatform) {
+      scene.remove(bullet);
+      bullets.splice(i, 1);
+      continue;
+    }
+    
+    if (bullet.userData.isPlayerBullet && gameRef.current.bots) {
+      for (const bot of gameRef.current.bots) {
+        if (bot && bullet.position.distanceTo(bot.position) < 1.2) {
+          bot.userData.health -= 25;
+          scene.remove(bullet);
+          bullets.splice(i, 1);
+          break;
+        }
+      }
+    }
+    
+    if (bullet.userData.isBotBullet) {
+      if (bullet.position.distanceTo(player.position) < 1.2) {
+        gameRef.current.playerHealth = Math.max(0, gameRef.current.playerHealth - 10);
+        scene.remove(bullet);
+        bullets.splice(i, 1);
+        continue;
+      }
+      
+      if (gameRef.current.bots) {
+        for (const bot of gameRef.current.bots) {
+          if (bot && bot !== bullet.userData.owner && 
+              bullet.position.distanceTo(bot.position) < 1.2) {
+            bot.userData.health -= 15;
+            scene.remove(bullet);
+            bullets.splice(i, 1);
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+function updateAbilities(gameRef, deltaTime, scene, onGameStateUpdate) {
+  if (!gameRef.current.abilities.ready && gameRef.current.abilities.cooldown > 0) {
+    gameRef.current.abilities.cooldown -= deltaTime;
+    if (gameRef.current.abilities.cooldown <= 0) {
+      gameRef.current.abilities.ready = true;
+      gameRef.current.abilities.cooldown = 0;
+    }
+  }
+}
+
+function activateAbility(operator, player, scene, gameRef, onGameStateUpdate) {
+  if (operator === 'teleporter') {
+    // Teleport to highest platform within range
+    let highestPlatform = null;
+    let maxHeight = player.position.y;
+    
+    if (gameRef.current.platforms) {
+      gameRef.current.platforms.forEach(platform => {
+        if (platform.userData.isObstacle) return;
+        const dist = player.position.distanceTo(platform.position);
+        if (dist < 30 && platform.position.y > maxHeight) {
+          maxHeight = platform.position.y;
+          highestPlatform = platform;
+        }
+      });
+    }
+    
+    if (highestPlatform) {
+      player.position.set(
+        highestPlatform.position.x,
+        highestPlatform.position.y + 2,
+        highestPlatform.position.z
+      );
+      
+      // Teleport effect
+      const effect = new THREE.PointLight(0xaa00ff, 10, 15);
+      effect.position.copy(player.position);
+      scene.add(effect);
+      setTimeout(() => scene.remove(effect), 500);
+    }
+  } else if (operator === 'blinder') {
+    // Flash nearby bots
+    if (gameRef.current.bots) {
+      gameRef.current.bots.forEach(bot => {
+        if (bot.position.distanceTo(player.position) < 20) {
+          bot.userData.blinded = true;
+          bot.userData.blindedUntil = gameRef.current.gameTime + 3;
+        }
+      });
+    }
+    
+    // Flash effect
+    const flash = new THREE.PointLight(0xffff00, 20, 25);
+    flash.position.copy(player.position);
+    scene.add(flash);
+    setTimeout(() => scene.remove(flash), 200);
+  } else if (operator === 'disabler') {
+    // Disable nearby bot abilities
+    if (gameRef.current.bots) {
+      gameRef.current.bots.forEach(bot => {
+        if (bot.position.distanceTo(player.position) < 18) {
+          bot.userData.abilityReady = false;
+          bot.userData.abilityCooldown = 5;
+        }
+      });
+    }
+    
+    // EMP effect
+    const emp = new THREE.PointLight(0x00aaff, 15, 20);
+    emp.position.copy(player.position);
+    scene.add(emp);
+    setTimeout(() => scene.remove(emp), 300);
+  } else if (operator === 'wall') {
+    // Create a temporary wall
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x00ff88,
+      emissive: 0x00ff88,
+      emissiveIntensity: 0.8,
+      transparent: true,
+      opacity: 0.7
+    });
+    
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(5, 3, 0.5),
+      wallMat
+    );
+    
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(player.quaternion);
+    forward.y = 0;
+    forward.normalize();
+    
+    wall.position.copy(player.position);
+    wall.position.addScaledVector(forward, 3);
+    wall.position.y += 1.5;
+    wall.lookAt(player.position);
+    wall.userData.isPlatform = true;
+    
+    scene.add(wall);
+    if (gameRef.current.platforms) {
+      gameRef.current.platforms.push(wall);
+    }
+    
+    setTimeout(() => {
+      scene.remove(wall);
+      if (gameRef.current.platforms) {
+        const index = gameRef.current.platforms.indexOf(wall);
+        if (index > -1) gameRef.current.platforms.splice(index, 1);
+      }
+    }, 8000);
+  }
+}
+
+function updateAbilityEffects(gameRef, scene, deltaTime) {
+  // Placeholder for any ongoing ability visual effects
+}

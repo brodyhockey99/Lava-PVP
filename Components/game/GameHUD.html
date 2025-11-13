@@ -1,0 +1,212 @@
+import { motion } from "framer-motion";
+import { Heart, Crosshair, Zap, Clock, Target, Flame } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+
+export default function GameHUD({ 
+  health, 
+  ammo, 
+  ability, 
+  operator, 
+  score, 
+  kills,
+  timeElapsed,
+  lavaHeight 
+}) {
+  const abilityNames = {
+    teleporter: "Duel Arena",
+    blinder: "Flashbang",
+    disabler: "System Hack",
+    wall: "Force Wall"
+  };
+
+  const abilityKey = "E";
+  const lavaWarning = timeElapsed >= 90;
+  const lavaProgress = lavaHeight > -10 ? ((lavaHeight + 10) / 40) * 100 : 0;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none">
+      {/* Crosshair */}
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        <Crosshair className="w-8 h-8 text-white opacity-70" strokeWidth={1.5} />
+      </div>
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start">
+        {/* Left - Health & Ammo */}
+        <div className="space-y-3">
+          {/* Health */}
+          <motion.div 
+            className="bg-black/60 backdrop-blur-sm border border-red-500/30 rounded-lg p-3 min-w-[200px]"
+            initial={{ x: -100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className={`w-5 h-5 ${health > 30 ? 'text-red-500' : 'text-red-700 animate-pulse'}`} />
+              <span className="text-white font-bold text-lg">{Math.max(0, Math.floor(health))}</span>
+              <span className="text-gray-400 text-sm">HP</span>
+            </div>
+            <Progress value={health} className="h-2" />
+          </motion.div>
+
+          {/* Ammo */}
+          <motion.div 
+            className={`bg-black/60 backdrop-blur-sm border rounded-lg p-3 ${
+              ammo === 0 ? 'border-red-500/50 animate-pulse' : 'border-yellow-500/30'
+            }`}
+            initial={{ x: -100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="flex items-center gap-2">
+              <Target className={`w-4 h-4 ${ammo === 0 ? 'text-red-500' : 'text-yellow-500'}`} />
+              <span className="text-white font-mono text-lg font-bold">{ammo}</span>
+              <span className="text-gray-400 text-xs">/ 30</span>
+            </div>
+            {ammo === 0 && (
+              <div className="text-xs text-red-400 mt-1">
+                Press R to reload
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Right - Stats */}
+        <div className="space-y-3 text-right">
+          {/* Timer */}
+          <motion.div 
+            className="bg-black/60 backdrop-blur-sm border border-gray-500/30 rounded-lg p-3 min-w-[150px]"
+            initial={{ x: 100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+          >
+            <div className="flex items-center justify-end gap-2">
+              <Clock className="w-4 h-4 text-gray-400" />
+              <span className="text-white font-mono">
+                {Math.floor(timeElapsed / 60)}:{(timeElapsed % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+          </motion.div>
+
+          {/* Kills */}
+          <motion.div 
+            className="bg-black/60 backdrop-blur-sm border border-purple-500/30 rounded-lg p-3"
+            initial={{ x: 100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="flex items-center justify-end gap-2">
+              <Target className="w-4 h-4 text-purple-400" />
+              <span className="text-white font-bold text-lg">{kills}</span>
+              <span className="text-gray-400 text-xs">KILLS</span>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div className="absolute bottom-0 left-0 right-0 p-6">
+        <div className="max-w-md mx-auto space-y-4">
+          {/* Lava Warning */}
+          {lavaWarning && (
+            <motion.div
+              className="bg-gradient-to-r from-red-900/80 to-orange-900/80 backdrop-blur-sm border border-red-500 rounded-lg p-4"
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-400 animate-pulse" />
+                  <span className="text-white font-bold text-sm uppercase tracking-wide">
+                    Lava Rising!
+                  </span>
+                </div>
+                <span className="text-orange-300 text-sm font-mono">
+                  {Math.floor(lavaProgress)}%
+                </span>
+              </div>
+              <Progress 
+                value={lavaProgress} 
+                className="h-2 bg-red-950"
+              />
+            </motion.div>
+          )}
+
+          {/* Ability */}
+          <motion.div
+            className={`relative bg-black/80 backdrop-blur-sm rounded-xl p-4 border-2 transition-all ${
+              ability.ready 
+                ? 'border-cyan-400 shadow-lg shadow-cyan-500/50' 
+                : 'border-gray-600'
+            }`}
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                  ability.ready ? 'bg-cyan-500/20' : 'bg-gray-700/20'
+                }`}>
+                  <Zap className={`w-6 h-6 ${
+                    ability.ready ? 'text-cyan-400' : 'text-gray-500'
+                  }`} />
+                </div>
+                <div>
+                  <div className="text-white font-bold text-sm">
+                    {abilityNames[operator]}
+                  </div>
+                  <div className="text-gray-400 text-xs">
+                    Press <span className="text-cyan-400 font-mono font-bold">{abilityKey}</span>
+                  </div>
+                </div>
+              </div>
+
+              {!ability.ready && (
+                <div className="text-right">
+                  <div className="text-gray-400 text-xs mb-1">Cooldown</div>
+                  <div className="text-white font-mono font-bold">
+                    {ability.cooldown.toFixed(1)}s
+                  </div>
+                </div>
+              )}
+
+              {ability.ready && (
+                <motion.div
+                  className="text-cyan-400 font-bold text-sm uppercase"
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  READY
+                </motion.div>
+              )}
+            </div>
+
+            {!ability.ready && (
+              <div className="mt-2">
+                <Progress 
+                  value={(1 - ability.cooldown / ability.maxCooldown) * 100} 
+                  className="h-1"
+                />
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Controls hint */}
+      <motion.div
+        className="absolute top-1/2 right-6 transform -translate-y-1/2 bg-black/60 backdrop-blur-sm border border-gray-700 rounded-lg p-4 text-xs text-gray-400 space-y-1"
+        initial={{ x: 100, opacity: 0 }}
+        animate={{ x: 0, opacity: 0.7 }}
+        transition={{ delay: 1 }}
+      >
+        <div><span className="text-white font-bold">WASD</span> - Move</div>
+        <div><span className="text-white font-bold">SPACE</span> - Jump (2x)</div>
+        <div><span className="text-white font-bold">MOUSE</span> - Look</div>
+        <div><span className="text-white font-bold">CLICK</span> - Shoot</div>
+        <div><span className="text-white font-bold">R</span> - Reload</div>
+        <div><span className="text-white font-bold">E</span> - Ability</div>
+        <div><span className="text-white font-bold">ESC</span> - Menu</div>
+      </motion.div>
+    </div>
+  );
+}
